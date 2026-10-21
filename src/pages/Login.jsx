@@ -109,7 +109,11 @@ export default function Login() {
           : undefined
       );
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Invalid credentials');
+      if (!err.response) {
+        toast.error('Cannot reach the server. Please check your connection or try again shortly.');
+      } else {
+        toast.error(err.response?.data?.error || 'Invalid credentials');
+      }
     } finally {
       setLoading(false);
     }
@@ -455,6 +459,7 @@ export default function Login() {
                       <input
                         type="text"
                         className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all bg-gray-50/50"
+                        maxLength={15}
                         placeholder="Enter lastname"
                         value={signupForm.lastname}
                         onChange={(e) => handleSignupChange('lastname', e.target.value)}
@@ -466,6 +471,7 @@ export default function Login() {
                       <input
                         type="text"
                         className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all bg-gray-50/50"
+                        maxLength={15}
                         placeholder="Enter firstname"
                         value={signupForm.firstname}
                         onChange={(e) => handleSignupChange('firstname', e.target.value)}
@@ -477,6 +483,7 @@ export default function Login() {
                       <input
                         type="text"
                         className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all bg-gray-50/50"
+                        maxLength={15}
                         placeholder="Enter middlename"
                         value={signupForm.middle_name}
                         onChange={(e) => handleSignupChange('middle_name', e.target.value)}
@@ -534,6 +541,7 @@ export default function Login() {
                     <input
                       type="email"
                       className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all bg-gray-50/50"
+                      maxLength={30}
                       placeholder="your.email@example.com"
                       value={signupForm.email}
                       onChange={(e) => handleSignupChange('email', e.target.value)}
@@ -544,6 +552,7 @@ export default function Login() {
                     <input
                       type="text"
                       className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all bg-gray-50/50"
+                      maxLength={100}
                       placeholder="Complete address"
                       value={signupForm.address}
                       onChange={(e) => handleSignupChange('address', e.target.value)}
