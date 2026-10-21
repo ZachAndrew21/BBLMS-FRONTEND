@@ -295,12 +295,20 @@ export default function Books() {
     if (selected.circulation_type === 'Reference' || selected.circulation_type === 'Room-Use Only') {
       return toast.error('This item is not available for borrowing');
     }
+    const activeCount = myLoans.filter(l => l.status !== 'Returned').length;
+    if (activeCount >= 3) {
+      return toast.error('You have reached the maximum borrowing limit of 3 books. Please return a book first.');
+    }
     setShowBorrowModal(true);
   };
 
   const handleBorrowSubmit = async () => {
     if (!selected) return;
     if (!dueDate) return toast.error('Please set a due date');
+    const activeCount = myLoans.filter(l => l.status !== 'Returned').length;
+    if (activeCount >= 3) {
+      return toast.error('Maximum limit reached: You already have 3 borrowed books.');
+    }
 
     setBorrowLoading(true);
     try {
@@ -700,12 +708,30 @@ export default function Books() {
                   <p className="text-xs text-gray-400 mt-1">Default: 3 days from today</p>
                 </div>
 
-                {/* My current loans */}
-                {myLoans.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-2 flex items-center gap-1">
-                      <FiList size={12} /> Your Current Loans ({myLoans.length})
+                {/* My current loans & Quota */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+                      <FiList size={12} /> Active Borrowed Books ({myLoans.filter(l => l.status !== 'Returned').length} / 3)
                     </p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      myLoans.filter(l => l.status !== 'Returned').length >= 3
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {myLoans.filter(l => l.status !== 'Returned').length >= 3
+                        ? 'Max Limit Reached (3/3)'
+                        : `${3 - myLoans.filter(l => l.status !== 'Returned').length} more allowed`}
+                    </span>
+                  </div>
+
+                  {myLoans.filter(l => l.status !== 'Returned').length >= 3 && (
+                    <div className="p-3 mb-2 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold leading-relaxed">
+                      You have reached the maximum borrowing limit of 3 books. You must return an existing borrowed book before borrowing another.
+                    </div>
+                  )}
+
+                  {myLoans.length > 0 && (
                     <div className="max-h-32 overflow-y-auto border rounded-lg">
                       {myLoans.map((loan) => (
                         <div key={loan.id} className="px-3 py-2 border-b last:border-b-0 text-sm flex justify-between items-center">
@@ -716,15 +742,15 @@ export default function Books() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Submit */}
                 <button
                   type="button"
-                  className="btn btn-success w-full py-3"
+                  className="btn btn-success w-full py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleBorrowSubmit}
-                  disabled={borrowLoading}
+                  disabled={borrowLoading || myLoans.filter(l => l.status !== 'Returned').length >= 3}
                 >
                   <FiCheck size={16} /> {borrowLoading ? 'Processing...' : 'Confirm Borrow'}
                 </button>

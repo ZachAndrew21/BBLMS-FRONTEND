@@ -422,10 +422,10 @@ export default function MyBorrows() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <SummaryCard
             label="Active Loans"
-            value={stats.active}
+            value={`${stats.active} / 3`}
             icon={FiBookmark}
-            color="blue"
-            sub="currently borrowed"
+            color={stats.active >= 3 ? 'amber' : 'blue'}
+            sub={stats.active >= 3 ? 'Limit reached (3 of 3)' : `${Math.max(0, 3 - stats.active)} more available to borrow`}
           />
           <SummaryCard
             label="Overdue"
@@ -449,6 +449,19 @@ export default function MyBorrows() {
             sub="books returned"
           />
         </div>
+
+        {/* ── Maximum Quota Reached Alert Banner ── */}
+        {stats.active >= 3 && (
+          <div className="flex items-start gap-3 px-5 py-4 rounded-2xl bg-amber-50/90 border border-amber-200/90 backdrop-blur-sm shadow-sm">
+            <FiBookmark size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-bold text-amber-950">Maximum Borrowing Quota Reached (3 / 3 Books)</p>
+              <p className="text-amber-900/80 mt-0.5 leading-snug">
+                You currently have 3 borrowed books, which is the maximum allowed limit. Please return at least one book to the library before borrowing another.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ── Action Required Alert Banner (if replacement needed) ── */}
         {records.some(r => r.incident_action_taken === 'Replacement Required' && r.status !== 'Returned') && (

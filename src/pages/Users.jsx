@@ -164,6 +164,10 @@ export default function Users() {
     if (!selectedBook) return toast.error('Please select a book');
     if (!dueDate) return toast.error('Please set a due date');
     if (selectedBook.copies_available <= 0) return toast.error('No copies available');
+    const activeLoans = userLoans.filter(l => ['loaned', 'overdue'].includes(l.status?.toLowerCase()));
+    if (activeLoans.length >= 3) {
+      return toast.error('Borrower has reached the maximum borrowing limit of 3 books.');
+    }
 
     setBorrowLoading(true);
     try {

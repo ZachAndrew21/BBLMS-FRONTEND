@@ -70,6 +70,12 @@ export default function Login() {
     api.get('/stats').then(r => setLiveStats(r.data)).catch(() => { });
   }, []);
 
+  useEffect(() => {
+    if (selfSignupEnabled && location.state?.showSignup) {
+      setShowSignup(true);
+    }
+  }, [location.state]);
+
   if (user) {
     return (
       <Navigate

@@ -31,8 +31,11 @@ export default function Checkout() {
   const [borrowerForm, setBorrowerForm] = useState({ ...emptyBorrowerForm });
   const [registerErrors, setRegisterErrors] = useState({});
   const [registerFormError, setRegisterFormError] = useState('');
+  const MAX_BORROW_LIMIT = 3;
   const [borrowerOverdue, setBorrowerOverdue] = useState(false);
   const [borrowerOverdueCount, setBorrowerOverdueCount] = useState(0);
+  const [borrowerActiveLoans, setBorrowerActiveLoans] = useState([]);
+  const [borrowerActiveLoanCount, setBorrowerActiveLoanCount] = useState(0);
   const [checkingOverdue, setCheckingOverdue] = useState(false);
 
   useEffect(() => {
@@ -43,36 +46,50 @@ export default function Checkout() {
     loadBooks('');
   }, []);
 
-  // Check for overdue books whenever a borrower is selected
+  const checkBorrowerStatus = async (borrowerId) => {
+    if (!borrowerId) {
+      setBorrowerOverdue(false);
+      setBorrowerOverdueCount(0);
+      setBorrowerActiveLoans([]);
+      setBorrowerActiveLoanCount(0);
+      return;
+    }
+    setCheckingOverdue(true);
+    try {
+      const res = await api.get(`/transactions/borrower/${borrowerId}`);
+      const loans = Array.isArray(res.data) ? res.data : [];
+      const active = loans.filter((l) => l.status !== 'Returned');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const overdueLoans = active.filter((l) => {
+        const due = new Date(l.due_date);
+        due.setHours(0, 0, 0, 0);
+        return due < today;
+      });
+      setBorrowerActiveLoans(active);
+      setBorrowerActiveLoanCount(active.length);
+      setBorrowerOverdue(overdueLoans.length > 0);
+      setBorrowerOverdueCount(overdueLoans.length);
+    } catch {
+      setBorrowerOverdue(false);
+      setBorrowerOverdueCount(0);
+      setBorrowerActiveLoans([]);
+      setBorrowerActiveLoanCount(0);
+    } finally {
+      setCheckingOverdue(false);
+    }
+  };
+
+  // Check for overdue books and loan limits whenever a borrower is selected
   useEffect(() => {
     if (!selectedBorrower) {
       setBorrowerOverdue(false);
       setBorrowerOverdueCount(0);
+      setBorrowerActiveLoans([]);
+      setBorrowerActiveLoanCount(0);
       return;
     }
-    const checkOverdue = async () => {
-      setCheckingOverdue(true);
-      try {
-        const res = await api.get(`/transactions/borrower/${selectedBorrower.id}`);
-        const loans = Array.isArray(res.data) ? res.data : [];
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const overdueLoans = loans.filter(l => {
-          if (l.status === 'Returned') return false;
-          const due = new Date(l.due_date);
-          due.setHours(0, 0, 0, 0);
-          return due < today;
-        });
-        setBorrowerOverdue(overdueLoans.length > 0);
-        setBorrowerOverdueCount(overdueLoans.length);
-      } catch {
-        setBorrowerOverdue(false);
-        setBorrowerOverdueCount(0);
-      } finally {
-        setCheckingOverdue(false);
-      }
-    };
-    checkOverdue();
+    checkBorrowerStatus(selectedBorrower.id);
   }, [selectedBorrower]);
 
   const loadBorrowers = async () => {
@@ -118,8 +135,14 @@ export default function Checkout() {
       })
     : allBooks;
 
+  const isBorrowLimitReached = borrowerActiveLoanCount >= MAX_BORROW_LIMIT;
+
   const handleBorrow = async () => {
     if (!selectedBorrower) return toast.error('Select a borrower first');
+    if (borrowerOverdue) return toast.error('Borrower has overdue books that must be returned first');
+    if (isBorrowLimitReached) {
+      return toast.error(`Borrower has reached the maximum borrowing limit of ${MAX_BORROW_LIMIT} books`);
+    }
     if (!selectedBook) return toast.error('Select an available book first');
     if (!loanDate || !dueDate) return toast.error('Set both borrow date and due date');
     if (dueDate < loanDate) return toast.error('Due date cannot be earlier than borrow date');
@@ -137,7 +160,10 @@ export default function Checkout() {
       toast.success('Borrow transaction saved successfully');
       setSelectedBook(null);
       setNotes('');
-      await loadBooks();
+      await Promise.all([
+        loadBooks(),
+        checkBorrowerStatus(selectedBorrower.id),
+      ]);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to save borrow transaction');
     } finally {
@@ -215,7 +241,15 @@ export default function Checkout() {
   const borrowerResultCount = filteredBorrowers.length;
   const bookResultCount = filteredBooks.length;
   const totalVisibleCopies = filteredBooks.reduce((sum, book) => sum + Number(book.copies_available || 0), 0);
-  const canSaveBorrow = Boolean(selectedBorrower && selectedBook && loanDate && dueDate && dueDate >= loanDate && !borrowerOverdue);
+  const canSaveBorrow = Boolean(
+    selectedBorrower &&
+    selectedBook &&
+    loanDate &&
+    dueDate &&
+    dueDate >= loanDate &&
+    !borrowerOverdue &&
+    !isBorrowLimitReached
+  );
 
   return (
     <div className="min-h-[calc(100vh-80px)] -m-6 p-6 lg:p-10 relative overflow-hidden flex flex-col font-sans">
@@ -320,24 +354,89 @@ export default function Checkout() {
                       ) : filteredBorrowers.map((borrower) => {
                         const isSelected = selectedBorrower?.id === borrower.id;
                         const isOverdue = isSelected && borrowerOverdue;
+                        const isMax = isSelected && isBorrowLimitReached;
                         return (
                           <tr
                             key={borrower.id}
                             onClick={() => setSelectedBorrower(borrower)}
-                            className={`cursor-pointer transition-colors group ${isOverdue ? 'bg-red-50/60 hover:bg-red-100/60' : isSelected ? 'bg-blue-100/50 hover:bg-blue-200/50' : 'hover:bg-white/40'}`}
+                            className={`cursor-pointer transition-colors group ${
+                              isOverdue
+                                ? 'bg-red-50/60 hover:bg-red-100/60'
+                                : isMax
+                                ? 'bg-amber-50/60 hover:bg-amber-100/60'
+                                : isSelected
+                                ? 'bg-blue-100/50 hover:bg-blue-200/50'
+                                : 'hover:bg-white/40'
+                            }`}
                           >
                             <td className="p-3 pl-4 relative">
-                              {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-r-md ${isOverdue ? 'bg-red-500' : 'bg-blue-500'}`} />}
-                              <span className={`font-mono text-sm ${isOverdue ? 'text-red-700 font-bold' : isSelected ? 'text-blue-700 font-bold' : 'text-blue-900/70 font-semibold group-hover:text-blue-600'}`}>{borrower.id_no}</span>
+                              {isSelected && (
+                                <div
+                                  className={`absolute left-0 top-0 bottom-0 w-1 rounded-r-md ${
+                                    isOverdue ? 'bg-red-500' : isMax ? 'bg-amber-500' : 'bg-blue-500'
+                                  }`}
+                                />
+                              )}
+                              <span
+                                className={`font-mono text-sm ${
+                                  isOverdue
+                                    ? 'text-red-700 font-bold'
+                                    : isMax
+                                    ? 'text-amber-800 font-bold'
+                                    : isSelected
+                                    ? 'text-blue-700 font-bold'
+                                    : 'text-blue-900/70 font-semibold group-hover:text-blue-600'
+                                }`}
+                              >
+                                {borrower.id_no}
+                              </span>
                             </td>
-                            <td className={`p-3 text-sm ${isOverdue ? 'text-red-950 font-bold' : isSelected ? 'text-blue-950 font-bold' : 'text-blue-900 font-semibold'}`}>
+                            <td
+                              className={`p-3 text-sm ${
+                                isOverdue
+                                  ? 'text-red-950 font-bold'
+                                  : isMax
+                                  ? 'text-amber-950 font-bold'
+                                  : isSelected
+                                  ? 'text-blue-950 font-bold'
+                                  : 'text-blue-900 font-semibold'
+                              }`}
+                            >
                               <span className="flex items-center gap-1.5">
                                 {borrower.firstname} {borrower.lastname}
                                 {isOverdue && <FiWarning size={13} className="text-red-500 flex-shrink-0" />}
+                                {isMax && !isOverdue && <FiWarning size={13} className="text-amber-500 flex-shrink-0" />}
                               </span>
+                              {isSelected && (
+                                <span
+                                  className={`text-[10px] font-bold block mt-0.5 ${
+                                    isOverdue
+                                      ? 'text-red-600'
+                                      : isMax
+                                      ? 'text-amber-700 font-black'
+                                      : 'text-blue-600'
+                                  }`}
+                                >
+                                  {checkingOverdue
+                                    ? 'Checking loan status...'
+                                    : `${borrowerActiveLoanCount}/${MAX_BORROW_LIMIT} books borrowed${
+                                        isMax ? ' (Max Limit Reached)' : ''
+                                      }`}
+                                </span>
+                              )}
                             </td>
                             <td className="p-3 pr-4">
-                              <span className={`inline-flex px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border backdrop-blur-sm ${isOverdue ? 'bg-red-100/50 text-red-700 border-red-200/50' : isSelected ? 'bg-indigo-100/50 text-indigo-700 border-indigo-200/50' : 'bg-blue-100/50 text-blue-700 border-blue-200/50'}`}>
+                              <span
+                                className={`inline-flex px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border backdrop-blur-sm ${
+                                  isOverdue
+                                    ? 'bg-red-100/50 text-red-700 border-red-200/50'
+                                    : isMax
+                                    ? 'bg-amber-100/50 text-amber-800 border-amber-200/50'
+                                    : isSelected
+                                    ? 'bg-indigo-100/50 text-indigo-700 border-indigo-200/50'
+                                    : 'bg-blue-100/50 text-blue-700 border-blue-200/50'
+                                }`}
+                              >
                                 {borrower.type}
                               </span>
                             </td>
@@ -444,6 +543,17 @@ export default function Checkout() {
                 <span className={`px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm backdrop-blur-sm transition-colors border ${selectedBook ? 'bg-emerald-100/60 text-emerald-700 border-emerald-200/50' : 'bg-white/40 text-blue-900/50 border-white/60'}`}>
                   {selectedBook ? '✓ Book Selected' : '! Book Required'}
                 </span>
+                <span className={`px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm backdrop-blur-sm transition-colors border ${
+                  !selectedBorrower
+                    ? 'bg-white/40 text-blue-900/50 border-white/60'
+                    : isBorrowLimitReached
+                    ? 'bg-red-100 text-red-700 border-red-300'
+                    : 'bg-indigo-100/60 text-indigo-700 border-indigo-200/50'
+                }`}>
+                  {selectedBorrower
+                    ? `Quota: ${borrowerActiveLoanCount}/${MAX_BORROW_LIMIT} Books`
+                    : `Max ${MAX_BORROW_LIMIT} Books / Borrower`}
+                </span>
               </div>
             </div>
 
@@ -455,8 +565,21 @@ export default function Checkout() {
                 <div className="w-12 h-12 bg-white/60 backdrop-blur-sm rounded-2xl shadow-sm border border-blue-100 flex items-center justify-center flex-shrink-0 relative z-10 text-blue-600">
                   <FiUser size={24} />
                 </div>
-                <div className="relative z-10">
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-blue-500 mb-0.5">Selected Borrower</p>
+                <div className="relative z-10 flex-1">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <p className="text-[10px] uppercase tracking-widest font-bold text-blue-500">Selected Borrower</p>
+                    {selectedBorrower && (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                        isBorrowLimitReached
+                          ? 'bg-red-100 text-red-700 border-red-300'
+                          : 'bg-blue-100 text-blue-800 border-blue-200'
+                      }`}>
+                        {isBorrowLimitReached
+                          ? `Limit Reached (${borrowerActiveLoanCount}/${MAX_BORROW_LIMIT})`
+                          : `${borrowerActiveLoanCount}/${MAX_BORROW_LIMIT} Borrowed`}
+                      </span>
+                    )}
+                  </div>
                   {selectedBorrower ? (
                     <>
                       <p className="text-base font-black text-blue-950">{selectedBorrower.firstname} {selectedBorrower.lastname}</p>
@@ -527,9 +650,39 @@ export default function Checkout() {
                   </div>
                 </div>
               )}
+              {isBorrowLimitReached && (
+                <div className="mt-4 flex items-start gap-3 p-4 bg-amber-100/80 text-amber-950 rounded-xl border border-amber-300 backdrop-blur-sm shadow-sm">
+                  <FiWarning className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
+                  <div className="flex-1">
+                    <p className="font-black text-sm text-amber-900">
+                      Maximum Borrowing Limit Reached ({borrowerActiveLoanCount}/{MAX_BORROW_LIMIT} books)
+                    </p>
+                    <p className="text-xs font-medium mt-0.5 text-amber-800">
+                      Borrowers can only avail a maximum of {MAX_BORROW_LIMIT} books at a time. This borrower must return at least one borrowed book before borrowing another.
+                    </p>
+                    {borrowerActiveLoans.length > 0 && (
+                      <div className="mt-3 bg-white/70 rounded-xl p-3 border border-amber-200/70">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-amber-900/70 mb-1.5">
+                          Currently Borrowed Books ({borrowerActiveLoans.length}):
+                        </p>
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                          {borrowerActiveLoans.map((loan) => (
+                            <div key={loan.id} className="text-xs flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-amber-100 shadow-2xs">
+                              <span className="font-bold text-slate-800 truncate mr-2">{loan.book_title}</span>
+                              <span className="text-[10px] font-mono text-slate-500 flex-shrink-0">
+                                Due: {loan.due_date ? String(loan.due_date).split('T')[0] : '—'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               {checkingOverdue && selectedBorrower && (
                 <div className="mt-4 flex items-center gap-2 p-3 bg-blue-50/60 text-blue-600 rounded-xl border border-blue-100/60 text-xs font-semibold">
-                  <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /> Checking borrower overdue status...
+                  <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /> Checking borrower loan status...
                 </div>
               )}
             </div>

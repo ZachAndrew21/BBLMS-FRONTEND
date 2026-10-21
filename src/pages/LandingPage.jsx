@@ -7,7 +7,7 @@ import {
   PiChartBar as FiBarChart2, PiShieldCheck as FiShield, PiList as FiMenu, PiX as FiX, PiCheck as FiCheck,
   PiArrowRight as FiArrowRight, PiEnvelopeSimple as FiMail, PiPhone as FiPhone, PiMapPin as FiMapPin,
   PiTrendUp as FiTrendingUp, PiStar as FiStar,
-  PiMagnifyingGlass as FiSearch, PiCaretDown,
+  PiMagnifyingGlass as FiSearch, PiCaretDown, PiUserPlus as FiUserPlus,
 } from 'react-icons/pi';
 
 const features = [
@@ -349,12 +349,23 @@ export default function LandingPage() {
             </div>
 
             {/* CTAs */}
-            <div className="hidden md:flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2.5">
               <button
                 onClick={() => handleGoToLogin()}
-                className="text-sm font-bold px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-px"
+                className={`text-sm font-bold px-4 py-2.5 rounded-xl transition-all ${
+                  scrolled
+                    ? 'text-gray-700 hover:text-blue-600 hover:bg-gray-100/70 border border-gray-200/80 shadow-2xs'
+                    : 'text-white/90 hover:text-white hover:bg-white/10 border border-white/20 backdrop-blur-md shadow-2xs'
+                }`}
               >
-                Sign In →
+                Sign In
+              </button>
+              <button
+                onClick={() => handleGoToLogin({ showSignup: true })}
+                className="text-sm font-bold px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-px active:translate-y-0 flex items-center gap-1.5"
+              >
+                <FiUserPlus size={16} />
+                <span>Sign Up</span>
               </button>
             </div>
 
@@ -381,12 +392,19 @@ export default function LandingPage() {
                 {['Home', 'Features', 'How It Works', 'Services'][i]}
               </a>
             ))}
-            <div className="pt-2 border-t border-gray-100 mt-2">
+            <div className="pt-3 border-t border-gray-100 mt-2 grid grid-cols-2 gap-2">
               <button
                 onClick={() => handleGoToLogin()}
-                className="w-full text-center text-sm font-bold px-4 py-3 rounded-xl bg-blue-600 text-white mt-2"
+                className="w-full text-center text-sm font-bold px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all"
               >
-                Sign In to Portal
+                Sign In
+              </button>
+              <button
+                onClick={() => handleGoToLogin({ showSignup: true })}
+                className="w-full text-center text-sm font-bold px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-1.5"
+              >
+                <FiUserPlus size={16} />
+                <span>Sign Up</span>
               </button>
             </div>
           </div>
